@@ -19,7 +19,7 @@ app.get("/ping", (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-//  STATO — speaker lock PER STANZA (fix bug critico)
+//  STATO — speaker lock PER STANZA
 //  { "cantiere_1": "socketId", "cantiere_2": null, ... }
 // ══════════════════════════════════════════════════════════════
 const speakers = {};
@@ -68,9 +68,9 @@ io.on("connection", (socket) => {
     socket.on("leave", (roomId) => {
         console.log(`LEAVE: ${socket.id} ← ${roomId}`);
 
-        // Se stava parlando, libera il microfono
         if (getSpeaker(roomId) === socket.id) {
             clearSpeaker(roomId);
+            socket.to(roomId).emit("speaker_stopped"); // 🔔 beep fine TX agli altri
             io.to(roomId).emit("speaker_free");
         }
 
@@ -102,7 +102,7 @@ io.on("connection", (socket) => {
             socket.to(roomId).emit("speaker_busy");
 
         } else if (speaker === socket.id) {
-            // Stava già parlando lui (es. ritrasmissione)
+            // Stava già parlando lui
             socket.emit("speaker_granted");
 
         } else {
@@ -118,6 +118,7 @@ io.on("connection", (socket) => {
         if (getSpeaker(roomId) === socket.id) {
             console.log(`🔇 FREE: ${roomId}`);
             clearSpeaker(roomId);
+            socket.to(roomId).emit("speaker_stopped"); // 🔔 beep fine TX agli altri
             io.to(roomId).emit("speaker_free");
         }
     });
@@ -145,15 +146,13 @@ io.on("connection", (socket) => {
 
         const roomId = socket.data.roomId;
 
-        // Libera il microfono se stava parlando
         if (roomId && getSpeaker(roomId) === socket.id) {
             clearSpeaker(roomId);
+            socket.to(roomId).emit("speaker_stopped"); // 🔔 beep fine TX agli altri
             io.to(roomId).emit("speaker_free");
             console.log(`🔇 AUTO-FREE: ${roomId}`);
         }
 
-        // Aggiorna conteggio utenti dopo un breve delay
-        // (Socket.IO impiega ~100ms a rimuoverlo dalla room)
         if (roomId) {
             setTimeout(() => emitUsers(roomId), 300);
         }
